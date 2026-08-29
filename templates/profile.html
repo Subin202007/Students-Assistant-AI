@@ -1,0 +1,106 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-user"></i> My Profile</h1>
+</div>
+
+<div class="profile-layout">
+    <div class="card glass">
+        <div class="card-header"><h3>Profile Photo</h3></div>
+        <div class="card-body">
+            <div class="profile-photo-container">
+                {% if current_user.profile_photo %}
+                <img src="{{ url_for('static', filename='uploads/' + current_user.profile_photo) }}" class="profile-photo-large" id="profilePhotoPreview">
+                {% else %}
+                <div class="profile-photo-large placeholder" id="profilePhotoPreview">{{ current_user.full_name[0] }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card glass">
+        <div class="card-header"><h3>Personal Information</h3></div>
+        <div class="card-body">
+            <form id="profileForm" enctype="multipart/form-data">
+                <div class="form-row">
+                    <div class="form-group"><label>Full Name</label><input type="text" id="pName" class="form-control" value="{{ current_user.full_name }}"></div>
+                    <div class="form-group"><label>Email</label><input type="email" class="form-control" value="{{ current_user.email }}" disabled></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Phone</label><input type="tel" id="pPhone" class="form-control" value="{{ current_user.phone or '' }}"></div>
+                    <div class="form-group"><label>Profile Photo</label><input type="file" id="pPhoto" class="form-control" accept="image/*"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>College</label><input type="text" id="pCollege" class="form-control" value="{{ current_user.college or '' }}"></div>
+                    <div class="form-group"><label>Department</label><input type="text" id="pDept" class="form-control" value="{{ current_user.department or '' }}"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Register Number</label><input type="text" id="pRegNo" class="form-control" value="{{ current_user.register_number or '' }}"></div>
+                    <div class="form-group"><label>Academic Year</label><input type="text" id="pYear" class="form-control" value="{{ current_user.academic_year or '' }}"></div>
+                </div>
+                <div class="form-group"><label>Semester</label>
+                    <select id="pSemester" class="form-control">
+                        {% for i in range(1, 9) %}<option value="{{ i }}" {% if i == (current_user.semester or 1) %}selected{% endif %}>Semester {{ i }}</option>{% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card glass">
+        <div class="card-header"><h3>Change Password</h3></div>
+        <div class="card-body">
+            <form id="passwordForm">
+                <div class="form-group"><label>Current Password</label><input type="password" id="pwCurrent" class="form-control" required></div>
+                <div class="form-group"><label>New Password</label><input type="password" id="pwNew" class="form-control" required minlength="6"></div>
+                <button type="submit" class="btn btn-primary">Change Password</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData();
+    fd.append('full_name', document.getElementById('pName').value);
+    fd.append('phone', document.getElementById('pPhone').value);
+    fd.append('college', document.getElementById('pCollege').value);
+    fd.append('department', document.getElementById('pDept').value);
+    fd.append('register_number', document.getElementById('pRegNo').value);
+    fd.append('academic_year', document.getElementById('pYear').value);
+    fd.append('semester', document.getElementById('pSemester').value);
+    const file = document.getElementById('pPhoto').files[0];
+    if (file) fd.append('photo', file);
+
+    const res = await fetch('/api/profile', { method: 'PUT', body: fd });
+    if (res.ok) {
+        alert('Profile updated!');
+        location.reload();
+    }
+});
+
+document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await fetch('/api/profile/password', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            current_password: document.getElementById('pwCurrent').value,
+            new_password: document.getElementById('pwNew').value,
+        })
+    });
+    const data = await res.json();
+    if (res.ok) {
+        alert(data.message);
+        document.getElementById('passwordForm').reset();
+    } else {
+        alert(data.error);
+    }
+});
+</script>
+{% endblock %}

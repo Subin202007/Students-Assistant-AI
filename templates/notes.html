@@ -1,0 +1,156 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Notes{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-sticky-note"></i> My Notes</h1>
+    <button class="btn btn-primary" onclick="openModal('noteModal')"><i class="fas fa-plus"></i> Add Note</button>
+</div>
+
+<div class="card glass">
+    <div class="card-header">
+        <h3>Notes Library</h3>
+        <div class="filters">
+            <input type="text" id="noteSearch" placeholder="Search notes..." class="form-control">
+            <select id="noteSubjectFilter" class="form-control"><option value="">All Subjects</option></select>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="notes-grid" id="notesGrid"></div>
+        <div class="empty-state" id="notesEmpty" style="display:none;">
+            <i class="fas fa-sticky-note"></i>
+            <p>No notes yet</p>
+            <button class="btn btn-primary" onclick="openModal('noteModal')">Add Note</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="noteModal">
+    <div class="modal-content glass">
+        <div class="modal-header">
+            <h3 id="noteModalTitle">Add Note</h3>
+            <button class="close-btn" onclick="closeModal('noteModal')">&times;</button>
+        </div>
+        <form id="noteForm" enctype="multipart/form-data">
+            <input type="hidden" id="noteId">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" id="noteTitle" class="form-control" required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Subject</label>
+                    <select id="noteSubject" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label>Unit</label>
+                    <input type="number" id="noteUnit" class="form-control" min="1">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="noteDescription" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Content</label>
+                <textarea id="noteContent" class="form-control" rows="6"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Tags (comma separated)</label>
+                <input type="text" id="noteTags" class="form-control" placeholder="important, chapter-1">
+            </div>
+            <div class="form-group">
+                <label>File Attachment</label>
+                <input type="file" id="noteFile" class="form-control" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt">
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadNotes() {
+    const [notesRes, subjRes] = await Promise.all([
+        fetch(`/api/notes?search=${document.getElementById('noteSearch').value || ''}`),
+        fetch('/api/subjects')
+    ]);
+    const notes = await notesRes.json();
+    const subjects = await subjRes.json();
+
+    const subjectSelect = document.getElementById('noteSubject');
+    const filterSelect = document.getElementById('noteSubjectFilter');
+    subjectSelect.innerHTML = '<option value="">General</option>' + subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    filterSelect.innerHTML = '<option value="">All Subjects</option>' + subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+    const grid = document.getElementById('notesGrid');
+    const empty = document.getElementById('notesEmpty');
+    if (notes.length === 0) {
+        grid.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    grid.innerHTML = notes.map(n => `
+        <div class="note-card">
+            <div class="note-header">
+                <h4>${n.title}</h4>
+                <span class="note-subject">${n.subject_name}</span>
+            </div>
+            <p class="note-desc">${n.description || ''}</p>
+            ${n.unit ? `<div class="note-meta">Unit ${n.unit}</div>` : ''}
+            ${n.tags ? `<div class="note-tags">${n.tags.split(',').map(t => `<span class="tag">${t.trim()}</span>`).join('')}</div>` : ''}
+            <div class="note-actions">
+                ${n.file_path ? `<a href="/uploads/${n.file_path}" class="btn btn-sm btn-outline" download><i class="fas fa-download"></i></a>` : ''}
+                <button class="btn btn-sm btn-outline" onclick='editNote(${JSON.stringify(n)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})"><i class="fas fa-trash"></i></button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function editNote(n) {
+    document.getElementById('noteId').value = n.id;
+    document.getElementById('noteTitle').value = n.title;
+    document.getElementById('noteSubject').value = n.subject_id || '';
+    document.getElementById('noteUnit').value = n.unit || '';
+    document.getElementById('noteDescription').value = n.description || '';
+    document.getElementById('noteContent').value = n.content || '';
+    document.getElementById('noteTags').value = n.tags || '';
+    document.getElementById('noteModalTitle').textContent = 'Edit Note';
+    openModal('noteModal');
+}
+
+async function deleteNote(id) {
+    if (!confirm('Delete?')) return;
+    await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+    loadNotes();
+}
+
+document.getElementById('noteForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('noteId').value;
+    const formData = new FormData();
+    formData.append('title', document.getElementById('noteTitle').value);
+    formData.append('subject_id', document.getElementById('noteSubject').value);
+    formData.append('unit', document.getElementById('noteUnit').value);
+    formData.append('description', document.getElementById('noteDescription').value);
+    formData.append('content', document.getElementById('noteContent').value);
+    formData.append('tags', document.getElementById('noteTags').value);
+    const file = document.getElementById('noteFile').files[0];
+    if (file) formData.append('file', file);
+
+    const url = id ? `/api/notes/${id}` : '/api/notes';
+    const method = id ? 'PUT' : 'POST';
+    await fetch(url, { method, body: formData });
+    closeModal('noteModal');
+    document.getElementById('noteForm').reset();
+    document.getElementById('noteId').value = '';
+    loadNotes();
+});
+
+document.getElementById('noteSearch').addEventListener('input', loadNotes);
+document.getElementById('noteSubjectFilter').addEventListener('change', loadNotes);
+loadNotes();
+</script>
+{% endblock %}

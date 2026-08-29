@@ -1,0 +1,229 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Resume Builder{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-file-alt"></i> AI Resume Builder</h1>
+    <button class="btn btn-primary" onclick="generateResume()"><i class="fas fa-magic"></i> Generate with AI</button>
+</div>
+
+<div class="resume-layout">
+    <div class="card glass">
+        <div class="card-header"><h3>Profile Information</h3></div>
+        <div class="card-body">
+            <form id="resumeForm">
+                <div class="form-row">
+                    <div class="form-group"><label>LinkedIn</label><input type="url" id="rLinkedin" class="form-control"></div>
+                    <div class="form-group"><label>GitHub</label><input type="url" id="rGithub" class="form-control"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Portfolio</label><input type="url" id="rPortfolio" class="form-control"></div>
+                    <div class="form-group"><label>Location</label><input type="text" id="rLocation" class="form-control"></div>
+                </div>
+                <div class="form-group"><label>Skills (comma separated)</label><textarea id="rSkills" class="form-control" rows="2"></textarea></div>
+                <div class="form-group"><label>Professional Summary</label><textarea id="rSummary" class="form-control" rows="3"></textarea></div>
+                <div class="form-group"><label>Template</label>
+                    <select id="rTemplate" class="form-control">
+                        <option value="modern">Modern</option>
+                        <option value="professional">Professional</option>
+                        <option value="minimal">Minimal</option>
+                        <option value="developer">Developer</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Profile</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card glass">
+        <div class="card-header">
+            <h3>Certifications</h3>
+            <button class="btn btn-sm btn-primary" onclick="openModal('certModal')"><i class="fas fa-plus"></i></button>
+        </div>
+        <div class="card-body" id="certsList"></div>
+    </div>
+
+    <div class="card glass">
+        <div class="card-header">
+            <h3>Achievements</h3>
+            <button class="btn btn-sm btn-primary" onclick="openModal('achModal')"><i class="fas fa-plus"></i></button>
+        </div>
+        <div class="card-body" id="achList"></div>
+    </div>
+</div>
+
+<div class="card glass">
+    <div class="card-header">
+        <h3>Resume Preview</h3>
+        <button class="btn btn-outline" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+    </div>
+    <div class="card-body" id="resumePreview">
+        <div class="empty-state"><p>Fill in your details and click "Generate with AI" to preview</p></div>
+    </div>
+</div>
+
+<div class="modal" id="certModal">
+    <div class="modal-content glass">
+        <div class="modal-header"><h3>Add Certification</h3><button class="close-btn" onclick="closeModal('certModal')">&times;</button></div>
+        <form id="certForm">
+            <div class="form-group"><label>Title</label><input type="text" id="certTitle" class="form-control" required></div>
+            <div class="form-row">
+                <div class="form-group"><label>Issuer</label><input type="text" id="certIssuer" class="form-control"></div>
+                <div class="form-group"><label>Date</label><input type="date" id="certDate" class="form-control"></div>
+            </div>
+            <div class="form-group"><label>Credential ID</label><input type="text" id="certCred" class="form-control"></div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="achModal">
+    <div class="modal-content glass">
+        <div class="modal-header"><h3>Add Achievement</h3><button class="close-btn" onclick="closeModal('achModal')">&times;</button></div>
+        <form id="achForm">
+            <div class="form-group"><label>Title</label><input type="text" id="achTitle" class="form-control" required></div>
+            <div class="form-group"><label>Description</label><textarea id="achDesc" class="form-control" rows="2"></textarea></div>
+            <div class="form-group"><label>Date</label><input type="date" id="achDate" class="form-control"></div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadResume() {
+    const res = await fetch('/api/resume/profile');
+    const data = await res.json();
+    if (data.profile) {
+        document.getElementById('rLinkedin').value = data.profile.linkedin || '';
+        document.getElementById('rGithub').value = data.profile.github || '';
+        document.getElementById('rPortfolio').value = data.profile.portfolio || '';
+        document.getElementById('rLocation').value = data.profile.location || '';
+        document.getElementById('rSkills').value = data.profile.skills || '';
+        document.getElementById('rSummary').value = data.profile.summary || '';
+        document.getElementById('rTemplate').value = data.profile.template || 'modern';
+    }
+
+    document.getElementById('certsList').innerHTML = data.certifications.length ? data.certifications.map(c => `
+        <div class="list-item">
+            <div><strong>${c.title}</strong><br><small>${c.issuer || ''} ${c.date ? '• ' + c.date : ''}</small></div>
+            <button class="btn btn-sm btn-danger" onclick="deleteCert(${c.id})"><i class="fas fa-trash"></i></button>
+        </div>
+    `).join('') : '<p class="text-muted">No certifications added</p>';
+
+    document.getElementById('achList').innerHTML = data.achievements.length ? data.achievements.map(a => `
+        <div class="list-item">
+            <div><strong>${a.title}</strong><br><small>${a.description || ''}</small></div>
+            <button class="btn btn-sm btn-danger" onclick="deleteAch(${a.id})"><i class="fas fa-trash"></i></button>
+        </div>
+    `).join('') : '<p class="text-muted">No achievements added</p>';
+}
+
+document.getElementById('resumeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await fetch('/api/resume/profile', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            linkedin: document.getElementById('rLinkedin').value,
+            github: document.getElementById('rGithub').value,
+            portfolio: document.getElementById('rPortfolio').value,
+            location: document.getElementById('rLocation').value,
+            skills: document.getElementById('rSkills').value,
+            summary: document.getElementById('rSummary').value,
+            template: document.getElementById('rTemplate').value,
+        })
+    });
+    alert('Saved!');
+});
+
+document.getElementById('certForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await fetch('/api/resume/certifications', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            title: document.getElementById('certTitle').value,
+            issuer: document.getElementById('certIssuer').value,
+            date: document.getElementById('certDate').value,
+            credential_id: document.getElementById('certCred').value,
+        })
+    });
+    closeModal('certModal');
+    document.getElementById('certForm').reset();
+    loadResume();
+});
+
+document.getElementById('achForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await fetch('/api/resume/achievements', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            title: document.getElementById('achTitle').value,
+            description: document.getElementById('achDesc').value,
+            date: document.getElementById('achDate').value,
+        })
+    });
+    closeModal('achModal');
+    document.getElementById('achForm').reset();
+    loadResume();
+});
+
+async function deleteCert(id) {
+    if (!confirm('Delete?')) return;
+    await fetch(`/api/resume/certifications/${id}`, { method: 'DELETE' });
+    loadResume();
+}
+
+async function deleteAch(id) {
+    if (!confirm('Delete?')) return;
+    await fetch(`/api/resume/achievements/${id}`, { method: 'DELETE' });
+    loadResume();
+}
+
+async function generateResume() {
+    const preview = document.getElementById('resumePreview');
+    preview.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Generating resume...</div>';
+    const res = await fetch('/api/resume/generate', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+    const data = await res.json();
+    preview.innerHTML = renderResume(data);
+}
+
+function renderResume(data) {
+    const u = data.user || {};
+    const p = data.profile || {};
+    return `
+        <div class="resume-doc template-${p.template || 'modern'}">
+            <header class="resume-header">
+                <h1>${u.full_name || ''}</h1>
+                <div class="resume-contact">
+                    ${u.email ? `<span><i class="fas fa-envelope"></i> ${u.email}</span>` : ''}
+                    ${u.phone ? `<span><i class="fas fa-phone"></i> ${u.phone}</span>` : ''}
+                    ${p.location ? `<span><i class="fas fa-map-marker-alt"></i> ${p.location}</span>` : ''}
+                    ${p.linkedin ? `<span><a href="${p.linkedin}">LinkedIn</a></span>` : ''}
+                    ${p.github ? `<span><a href="${p.github}">GitHub</a></span>` : ''}
+                </div>
+            </header>
+            ${data.ai_summary || p.summary ? `<section><h2>Summary</h2><p>${data.ai_summary || p.summary}</p></section>` : ''}
+            <section><h2>Education</h2>
+                <p><strong>${u.department || ''}</strong> - ${u.college || ''}</p>
+                <p>Semester: ${u.semester || ''}</p>
+            </section>
+            ${p.skills ? `<section><h2>Skills</h2><div class="skills-list">${p.skills.split(',').map(s => `<span class="skill-tag">${s.trim()}</span>`).join('')}</div></section>` : ''}
+            ${data.projects && data.projects.length ? `<section><h2>Projects</h2>${data.projects.map((pr, i) => `
+                <div class="resume-project">
+                    <h3>${pr.title}</h3>
+                    <p>${data.ai_project_descriptions && data.ai_project_descriptions[i] ? data.ai_project_descriptions[i] : pr.description || ''}</p>
+                    <p><em>${pr.technologies || ''}</em></p>
+                </div>
+            `).join('')}</section>` : ''}
+            ${data.certifications && data.certifications.length ? `<section><h2>Certifications</h2><ul>${data.certifications.map(c => `<li><strong>${c.title}</strong> - ${c.issuer || ''} ${c.date ? '(' + c.date + ')' : ''}</li>`).join('')}</ul></section>` : ''}
+            ${data.achievements && data.achievements.length ? `<section><h2>Achievements</h2><ul>${data.achievements.map(a => `<li><strong>${a.title}</strong> ${a.description ? '- ' + a.description : ''}</li>`).join('')}</ul></section>` : ''}
+        </div>
+    `;
+}
+
+loadResume();
+</script>
+{% endblock %}

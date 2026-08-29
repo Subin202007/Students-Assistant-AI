@@ -1,0 +1,187 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Dashboard - Students Assistant AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Welcome, {{ current_user.full_name.split()[0] }} 👋</h1>
+    <p>Here's your academic overview</p>
+</div>
+
+<div class="stats-grid" id="statsGrid">
+    <div class="stat-card glass">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+            <i class="fas fa-book"></i>
+        </div>
+        <div class="stat-info">
+            <div class="stat-value" id="totalSubjects">-</div>
+            <div class="stat-label">Subjects</div>
+        </div>
+    </div>
+    <div class="stat-card glass">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+            <i class="fas fa-clipboard-check"></i>
+        </div>
+        <div class="stat-info">
+            <div class="stat-value" id="attendancePct">-</div>
+            <div class="stat-label">Attendance</div>
+        </div>
+    </div>
+    <div class="stat-card glass">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">
+            <i class="fas fa-calculator"></i>
+        </div>
+        <div class="stat-info">
+            <div class="stat-value" id="currentCgpa">-</div>
+            <div class="stat-label">CGPA</div>
+        </div>
+    </div>
+    <div class="stat-card glass">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b, #38f9d7);">
+            <i class="fas fa-tasks"></i>
+        </div>
+        <div class="stat-info">
+            <div class="stat-value" id="pendingAssign">-</div>
+            <div class="stat-label">Pending Assignments</div>
+        </div>
+    </div>
+    <div class="stat-card glass">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a, #fee140);">
+            <i class="fas fa-project-diagram"></i>
+        </div>
+        <div class="stat-info">
+            <div class="stat-value" id="completedProjects">-</div>
+            <div class="stat-label">Completed Projects</div>
+        </div>
+    </div>
+    <div class="stat-card glass">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #30cfd0, #330867);">
+            <i class="fas fa-wallet"></i>
+        </div>
+        <div class="stat-info">
+            <div class="stat-value" id="feeBalance">-</div>
+            <div class="stat-label">Fee Balance</div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="dashboard-card glass">
+        <div class="card-header">
+            <h3><i class="fas fa-chart-bar"></i> Subject-wise Attendance</h3>
+        </div>
+        <div class="card-body">
+            <canvas id="attendanceChart"></canvas>
+            <div class="empty-state" id="attendanceEmpty" style="display:none;">
+                <i class="fas fa-clipboard-check"></i>
+                <p>No attendance records yet</p>
+                <a href="{{ url_for('attendance.attendance_page') }}" class="btn btn-primary btn-sm">Add Attendance</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-card glass">
+        <div class="card-header">
+            <h3><i class="fas fa-tasks"></i> Pending Assignments</h3>
+        </div>
+        <div class="card-body">
+            <div id="pendingAssignmentsList"></div>
+            <div class="empty-state" id="assignmentsEmpty" style="display:none;">
+                <i class="fas fa-check-circle"></i>
+                <p>No pending assignments! Great job!</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="quick-actions glass">
+    <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+    <div class="quick-grid">
+        <a href="{{ url_for('ai.ai_assistant_page') }}" class="quick-btn">
+            <i class="fas fa-robot"></i> Ask EduAI
+        </a>
+        <a href="{{ url_for('notes.notes_page') }}" class="quick-btn">
+            <i class="fas fa-plus"></i> Add Note
+        </a>
+        <a href="{{ url_for('assignments.assignments_page') }}" class="quick-btn">
+            <i class="fas fa-plus"></i> Add Assignment
+        </a>
+        <a href="{{ url_for('cgpa.cgpa_page') }}" class="quick-btn">
+            <i class="fas fa-calculator"></i> Calculate CGPA
+        </a>
+        <a href="{{ url_for('resume.resume_page') }}" class="quick-btn">
+            <i class="fas fa-file-alt"></i> Build Resume
+        </a>
+        <a href="{{ url_for('ai.study_material_page') }}" class="quick-btn">
+            <i class="fas fa-book-reader"></i> Study Material
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadDashboard() {
+    try {
+        const res = await fetch('/api/dashboard');
+        const data = await res.json();
+
+        document.getElementById('totalSubjects').textContent = data.total_subjects;
+        document.getElementById('attendancePct').textContent = data.attendance_percentage + '%';
+        document.getElementById('currentCgpa').textContent = data.current_cgpa || '-';
+        document.getElementById('pendingAssign').textContent = data.pending_assignments;
+        document.getElementById('completedProjects').textContent = data.completed_projects;
+        document.getElementById('feeBalance').textContent = '₹' + (data.fee_balance || 0).toLocaleString();
+
+        // Attendance chart
+        if (data.subject_attendance && data.subject_attendance.length > 0) {
+            const ctx = document.getElementById('attendanceChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.subject_attendance.map(s => s.name),
+                    datasets: [{
+                        label: 'Attendance %',
+                        data: data.subject_attendance.map(s => s.percentage),
+                        backgroundColor: data.subject_attendance.map(s => {
+                            if (s.percentage >= 90) return 'rgba(67, 233, 123, 0.7)';
+                            if (s.percentage >= 75) return 'rgba(79, 172, 254, 0.7)';
+                            if (s.percentage >= 65) return 'rgba(250, 112, 154, 0.7)';
+                            return 'rgba(245, 87, 108, 0.7)';
+                        }),
+                        borderRadius: 8,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, max: 100 } }
+                }
+            });
+        } else {
+            document.getElementById('attendanceChart').style.display = 'none';
+            document.getElementById('attendanceEmpty').style.display = 'block';
+        }
+
+        // Pending assignments
+        const list = document.getElementById('pendingAssignmentsList');
+        if (data.pending_assignment_list && data.pending_assignment_list.length > 0) {
+            list.innerHTML = data.pending_assignment_list.map(a => `
+                <div class="assignment-item">
+                    <div>
+                        <div class="assignment-title">${a.title}</div>
+                        <div class="assignment-meta">${a.subject} • Due: ${a.due_date || 'N/A'}</div>
+                    </div>
+                    <a href="{{ url_for('assignments.assignments_page') }}" class="btn btn-sm btn-outline">View</a>
+                </div>
+            `).join('');
+        } else {
+            list.style.display = 'none';
+            document.getElementById('assignmentsEmpty').style.display = 'block';
+        }
+    } catch (err) {
+        console.error('Dashboard load error:', err);
+    }
+}
+loadDashboard();
+</script>
+{% endblock %}

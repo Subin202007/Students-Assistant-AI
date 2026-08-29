@@ -1,0 +1,183 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Study Materials{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-book-reader"></i> AI Study Materials</h1>
+</div>
+
+<div class="study-tools-grid">
+    <div class="card glass">
+        <div class="card-header"><h3><i class="fas fa-book"></i> Generate Study Material</h3></div>
+        <div class="card-body">
+            <form id="studyForm">
+                <div class="form-group"><label>Subject</label><input type="text" id="smSubject" class="form-control" required></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Unit</label><input type="text" id="smUnit" class="form-control"></div>
+                    <div class="form-group"><label>Topic</label><input type="text" id="smTopic" class="form-control" required></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Difficulty</label>
+                        <select id="smDifficulty" class="form-control">
+                            <option>Easy</option><option selected>Medium</option><option>Advanced</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Exam Type</label><input type="text" id="smExam" class="form-control" placeholder="Internal, Semester..."></div>
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-magic"></i> Generate</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card glass">
+        <div class="card-header"><h3><i class="fas fa-question-circle"></i> Important Questions</h3></div>
+        <div class="card-body">
+            <form id="iqForm">
+                <div class="form-row">
+                    <div class="form-group"><label>Subject</label><input type="text" id="iqSubject" class="form-control" required></div>
+                    <div class="form-group"><label>Semester</label><input type="text" id="iqSemester" class="form-control"></div>
+                </div>
+                <div class="form-group"><label>Units</label><input type="text" id="iqUnits" class="form-control" placeholder="1, 2, 3"></div>
+                <div class="form-group"><label>Your Notes (optional)</label><textarea id="iqNotes" class="form-control" rows="3"></textarea></div>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-magic"></i> Generate</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card glass">
+        <div class="card-header"><h3><i class="fas fa-compress-alt"></i> Notes Summarizer</h3></div>
+        <div class="card-body">
+            <form id="sumForm">
+                <div class="form-group"><label>Your Notes</label><textarea id="sumNotes" class="form-control" rows="5" required></textarea></div>
+                <div class="form-group"><label>Mode</label>
+                    <select id="sumMode" class="form-control">
+                        <option value="short">Short Summary</option>
+                        <option value="detailed">Detailed Summary</option>
+                        <option value="points">Key Points</option>
+                        <option value="questions">Revision Questions</option>
+                        <option value="flashcards">Flashcards</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-magic"></i> Summarize</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card glass">
+        <div class="card-header"><h3><i class="fas fa-calendar-check"></i> Study Planner</h3></div>
+        <div class="card-body">
+            <form id="planForm">
+                <div class="form-group"><label>Subjects (comma separated)</label><input type="text" id="plSubjects" class="form-control" required></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Exam Dates</label><input type="text" id="plDates" class="form-control" placeholder="Math: 2026-09-15, ..."></div>
+                    <div class="form-group"><label>Hours/Day</label><input type="number" id="plHours" class="form-control" value="4" min="1" max="12"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Weak Subjects</label><input type="text" id="plWeak" class="form-control"></div>
+                    <div class="form-group"><label>Strong Subjects</label><input type="text" id="plStrong" class="form-control"></div>
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-magic"></i> Generate Plan</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card glass">
+    <div class="card-header"><h3>Generated Content</h3></div>
+    <div class="card-body" id="generatedContent">
+        <div class="empty-state"><i class="fas fa-wand-magic-sparkles"></i><p>Use any tool above to generate content</p></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function showLoading() {
+    document.getElementById('generatedContent').innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Generating with AI...</div>';
+}
+
+function showResult(content) {
+    document.getElementById('generatedContent').innerHTML = `<div class="ai-result">${renderMd(content)}</div>`;
+}
+
+function renderMd(text) {
+    return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`(.+?)`/g, '<code>$1</code>')
+        .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/\n/g, '<br>');
+}
+
+document.getElementById('studyForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await showLoading();
+    const res = await fetch('/api/ai/study-material', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            subject: document.getElementById('smSubject').value,
+            unit: document.getElementById('smUnit').value,
+            topic: document.getElementById('smTopic').value,
+            difficulty: document.getElementById('smDifficulty').value,
+            exam_type: document.getElementById('smExam').value,
+        })
+    });
+    const data = await res.json();
+    showResult(data.content);
+});
+
+document.getElementById('iqForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await showLoading();
+    const res = await fetch('/api/ai/important-questions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            subject: document.getElementById('iqSubject').value,
+            semester: document.getElementById('iqSemester').value,
+            units: document.getElementById('iqUnits').value,
+            notes_content: document.getElementById('iqNotes').value,
+        })
+    });
+    const data = await res.json();
+    showResult(data.content);
+});
+
+document.getElementById('sumForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await showLoading();
+    const res = await fetch('/api/ai/summarize', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            notes: document.getElementById('sumNotes').value,
+            mode: document.getElementById('sumMode').value,
+        })
+    });
+    const data = await res.json();
+    showResult(data.content);
+});
+
+document.getElementById('planForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await showLoading();
+    const res = await fetch('/api/ai/study-plan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            subjects: document.getElementById('plSubjects').value,
+            exam_dates: document.getElementById('plDates').value,
+            hours_per_day: document.getElementById('plHours').value,
+            weak_subjects: document.getElementById('plWeak').value,
+            strong_subjects: document.getElementById('plStrong').value,
+        })
+    });
+    const data = await res.json();
+    showResult(data.content);
+});
+</script>
+{% endblock %}

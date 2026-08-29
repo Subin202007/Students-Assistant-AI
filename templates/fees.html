@@ -1,0 +1,190 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Fees{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-wallet"></i> Fee Management</h1>
+    <button class="btn btn-primary" onclick="openModal('feeModal')"><i class="fas fa-plus"></i> Add Fee</button>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card glass">
+        <div class="stat-info">
+            <div class="stat-value" id="totalFee">₹0</div>
+            <div class="stat-label">Total Fees</div>
+        </div>
+    </div>
+    <div class="stat-card glass">
+        <div class="stat-info">
+            <div class="stat-value" id="paidFee">₹0</div>
+            <div class="stat-label">Paid</div>
+        </div>
+    </div>
+    <div class="stat-card glass">
+        <div class="stat-info">
+            <div class="stat-value" id="remainingFee">₹0</div>
+            <div class="stat-label">Remaining</div>
+        </div>
+    </div>
+</div>
+
+<div class="card glass">
+    <div class="card-header"><h3>Fee Records</h3></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Type</th><th>Total</th><th>Paid</th><th>Remaining</th><th>Date</th><th>Status</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="feesTable"></tbody>
+            </table>
+        </div>
+        <div class="empty-state" id="feesEmpty" style="display:none;">
+            <i class="fas fa-wallet"></i>
+            <p>No fee records yet</p>
+            <button class="btn btn-primary" onclick="openModal('feeModal')">Add Fee</button>
+        </div>
+    </div>
+</div>
+
+<!-- Fee Modal -->
+<div class="modal" id="feeModal">
+    <div class="modal-content glass">
+        <div class="modal-header">
+            <h3 id="feeModalTitle">Add Fee</h3>
+            <button class="close-btn" onclick="closeModal('feeModal')">&times;</button>
+        </div>
+        <form id="feeForm" enctype="multipart/form-data">
+            <input type="hidden" id="feeId">
+            <div class="form-group">
+                <label>Fee Type</label>
+                <input type="text" id="feeType" class="form-control" required placeholder="Tuition, Hostel, etc.">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Total Amount (₹)</label>
+                    <input type="number" id="feeTotal" class="form-control" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Paid Amount (₹)</label>
+                    <input type="number" id="feePaid" class="form-control" step="0.01" value="0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Payment Date</label>
+                    <input type="date" id="feeDate" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <select id="feeMethod" class="form-control">
+                        <option value="Online">Online</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="DD">DD</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Reference Number</label>
+                <input type="text" id="feeRef" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select id="feeStatus" class="form-control">
+                    <option value="Pending">Pending</option>
+                    <option value="Partial">Partial</option>
+                    <option value="Paid">Paid</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Receipt (optional)</label>
+                <input type="file" id="feeReceipt" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadFees() {
+    const res = await fetch('/api/fees');
+    const data = await res.json();
+    document.getElementById('totalFee').textContent = '₹' + data.total.toLocaleString();
+    document.getElementById('paidFee').textContent = '₹' + data.paid.toLocaleString();
+    document.getElementById('remainingFee').textContent = '₹' + data.remaining.toLocaleString();
+
+    const tbody = document.getElementById('feesTable');
+    const empty = document.getElementById('feesEmpty');
+    if (data.fees.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = data.fees.map(f => `
+        <tr>
+            <td><strong>${f.fee_type}</strong></td>
+            <td>₹${f.total_amount.toLocaleString()}</td>
+            <td>₹${f.paid_amount.toLocaleString()}</td>
+            <td>₹${f.remaining.toLocaleString()}</td>
+            <td>${f.payment_date || '-'}</td>
+            <td><span class="status-badge status-${f.status.toLowerCase()}">${f.status}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick='editFee(${JSON.stringify(f)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-danger" onclick="deleteFee(${f.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function editFee(f) {
+    document.getElementById('feeId').value = f.id;
+    document.getElementById('feeType').value = f.fee_type;
+    document.getElementById('feeTotal').value = f.total_amount;
+    document.getElementById('feePaid').value = f.paid_amount;
+    document.getElementById('feeDate').value = f.payment_date || '';
+    document.getElementById('feeMethod').value = f.payment_method || 'Online';
+    document.getElementById('feeRef').value = f.reference_number || '';
+    document.getElementById('feeStatus').value = f.status;
+    document.getElementById('feeModalTitle').textContent = 'Edit Fee';
+    openModal('feeModal');
+}
+
+async function deleteFee(id) {
+    if (!confirm('Delete?')) return;
+    await fetch(`/api/fees/${id}`, { method: 'DELETE' });
+    loadFees();
+}
+
+document.getElementById('feeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('feeId').value;
+    const formData = new FormData();
+    formData.append('fee_type', document.getElementById('feeType').value);
+    formData.append('total_amount', document.getElementById('feeTotal').value);
+    formData.append('paid_amount', document.getElementById('feePaid').value);
+    formData.append('payment_date', document.getElementById('feeDate').value);
+    formData.append('payment_method', document.getElementById('feeMethod').value);
+    formData.append('reference_number', document.getElementById('feeRef').value);
+    formData.append('status', document.getElementById('feeStatus').value);
+    const file = document.getElementById('feeReceipt').files[0];
+    if (file) formData.append('receipt', file);
+
+    const url = id ? `/api/fees/${id}` : '/api/fees';
+    const method = id ? 'PUT' : 'POST';
+    const headers = id ? {'Content-Type': 'application/json'} : {};
+    const body = id ? JSON.stringify(Object.fromEntries(formData)) : formData;
+    await fetch(url, { method, headers, body });
+    closeModal('feeModal');
+    document.getElementById('feeForm').reset();
+    document.getElementById('feeId').value = '';
+    loadFees();
+});
+
+loadFees();
+</script>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Exams & Marks{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-chart-line"></i> Exams & Marks</h1>
+    <button class="btn btn-primary" onclick="openModal('examModal')"><i class="fas fa-plus"></i> Add Exam</button>
+</div>
+
+<div class="card glass">
+    <div class="card-header"><h3>Exam Analytics</h3></div>
+    <div class="card-body">
+        <div class="chart-row">
+            <canvas id="examBarChart"></canvas>
+            <canvas id="examDoughnut"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="card glass">
+    <div class="card-header"><h3>Exam Records</h3></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead><tr><th>Subject</th><th>Type</th><th>Date</th><th>Max</th><th>Obtained</th><th>%</th><th>Actions</th></tr></thead>
+                <tbody id="examTable"></tbody>
+            </table>
+        </div>
+        <div class="empty-state" id="examEmpty" style="display:none;">
+            <i class="fas fa-chart-line"></i>
+            <p>No exams recorded yet</p>
+            <button class="btn btn-primary" onclick="openModal('examModal')">Add Exam</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="examModal">
+    <div class="modal-content glass">
+        <div class="modal-header">
+            <h3>Add Exam</h3>
+            <button class="close-btn" onclick="closeModal('examModal')">&times;</button>
+        </div>
+        <form id="examForm">
+            <div class="form-group"><label>Subject</label><select id="examSubject" class="form-control" required></select></div>
+            <div class="form-row">
+                <div class="form-group"><label>Exam Type</label>
+                    <select id="examType" class="form-control">
+                        <option>Weekly Test</option><option>Internal 1</option><option>Internal 2</option><option>Internal 3</option><option>Semester</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Date</label><input type="date" id="examDate" class="form-control"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Max Marks</label><input type="number" id="examMax" class="form-control" value="100"></div>
+                <div class="form-group"><label>Obtained Marks</label><input type="number" id="examObtained" class="form-control"></div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let barChart, doughnutChart;
+
+async function loadExams() {
+    const [eRes, sRes, aRes] = await Promise.all([
+        fetch('/api/exams'), fetch('/api/subjects'), fetch('/api/exams/analytics')
+    ]);
+    const exams = await eRes.json();
+    const subjects = await sRes.json();
+    const analytics = await aRes.json();
+
+    document.getElementById('examSubject').innerHTML = '<option value="">Select</option>' + subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+    const tbody = document.getElementById('examTable');
+    const empty = document.getElementById('examEmpty');
+    if (exams.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    tbody.innerHTML = exams.map(e => {
+        const mark = e.marks[0];
+        const pct = mark ? ((mark.obtained_marks / e.max_marks) * 100).toFixed(1) : '-';
+        return `<tr>
+            <td><strong>${e.subject_name}</strong></td>
+            <td>${e.exam_type}</td>
+            <td>${e.date || '-'}</td>
+            <td>${e.max_marks}</td>
+            <td>${mark ? mark.obtained_marks : '-'}</td>
+            <td>${pct}${pct !== '-' ? '%' : ''}</td>
+            <td><button class="btn btn-sm btn-danger" onclick="deleteExam(${e.id})"><i class="fas fa-trash"></i></button></td>
+        </tr>`;
+    }).join('');
+
+    // Charts
+    if (analytics.analytics.length > 0) {
+        if (barChart) barChart.destroy();
+        if (doughnutChart) doughnutChart.destroy();
+        const ctx1 = document.getElementById('examBarChart').getContext('2d');
+        barChart = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels: analytics.analytics.map(a => a.subject),
+                datasets: [{
+                    label: 'Average %',
+                    data: analytics.analytics.map(a => (a.average / a.max_marks * 100).toFixed(1)),
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                    borderRadius: 8,
+                }]
+            },
+            options: { responsive: true, plugins: { title: { display: true, text: 'Subject Performance' } } }
+        });
+
+        const ctx2 = document.getElementById('examDoughnut').getContext('2d');
+        doughnutChart = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels: analytics.analytics.map(a => a.subject),
+                datasets: [{
+                    data: analytics.analytics.map(a => a.attempts),
+                    backgroundColor: ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a'],
+                }]
+            },
+            options: { responsive: true, plugins: { title: { display: true, text: 'Exam Attempts' } } }
+        });
+    }
+}
+
+async function deleteExam(id) {
+    if (!confirm('Delete?')) return;
+    await fetch(`/api/exams/${id}`, { method: 'DELETE' });
+    loadExams();
+}
+
+document.getElementById('examForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await fetch('/api/exams', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            subject_id: document.getElementById('examSubject').value,
+            exam_type: document.getElementById('examType').value,
+            date: document.getElementById('examDate').value,
+            max_marks: document.getElementById('examMax').value,
+            obtained_marks: document.getElementById('examObtained').value,
+        })
+    });
+    closeModal('examModal');
+    document.getElementById('examForm').reset();
+    loadExams();
+});
+
+loadExams();
+</script>
+{% endblock %}

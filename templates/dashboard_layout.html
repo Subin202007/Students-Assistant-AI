@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-small">
+                <i class="fas fa-graduation-cap"></i>
+                <span>Students AI</span>
+            </div>
+            <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="sidebar-user">
+            <div class="user-avatar">
+                {% if current_user.profile_photo %}
+                <img src="{{ url_for('static', filename='uploads/' + current_user.profile_photo) }}" alt="">
+                {% else %}
+                <span>{{ current_user.full_name[0] }}</span>
+                {% endif %}
+            </div>
+            <div class="user-info">
+                <div class="user-name">{{ current_user.full_name }}</div>
+                <div class="user-dept">{{ current_user.department or 'Student' }}</div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('dashboard.dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard.dashboard' %}active{% endif %}">
+                <i class="fas fa-th-large"></i><span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('academic.academics_page') }}" class="nav-item">
+                <i class="fas fa-book"></i><span>My Academics</span>
+            </a>
+            <a href="{{ url_for('attendance.attendance_page') }}" class="nav-item">
+                <i class="fas fa-clipboard-check"></i><span>Attendance</span>
+            </a>
+            <a href="{{ url_for('fees.fees_page') }}" class="nav-item">
+                <i class="fas fa-wallet"></i><span>Fees</span>
+            </a>
+            <a href="{{ url_for('notes.notes_page') }}" class="nav-item">
+                <i class="fas fa-sticky-note"></i><span>Notes</span>
+            </a>
+            <a href="{{ url_for('assignments.assignments_page') }}" class="nav-item">
+                <i class="fas fa-tasks"></i><span>Assignments</span>
+            </a>
+            <a href="{{ url_for('projects.projects_page') }}" class="nav-item">
+                <i class="fas fa-project-diagram"></i><span>Projects</span>
+            </a>
+            <a href="{{ url_for('exams.exams_page') }}" class="nav-item">
+                <i class="fas fa-chart-line"></i><span>Exams & Marks</span>
+            </a>
+            <a href="{{ url_for('cgpa.cgpa_page') }}" class="nav-item">
+                <i class="fas fa-calculator"></i><span>CGPA Calculator</span>
+            </a>
+            <a href="{{ url_for('resume.resume_page') }}" class="nav-item">
+                <i class="fas fa-file-alt"></i><span>Resume Builder</span>
+            </a>
+            <a href="{{ url_for('ai.ai_assistant_page') }}" class="nav-item">
+                <i class="fas fa-robot"></i><span>AI Assistant</span>
+            </a>
+            <a href="{{ url_for('ai.study_material_page') }}" class="nav-item">
+                <i class="fas fa-book-reader"></i><span>Study Materials</span>
+            </a>
+            <a href="{{ url_for('profile.profile_page') }}" class="nav-item">
+                <i class="fas fa-user"></i><span>Profile</span>
+            </a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-item logout">
+                <i class="fas fa-sign-out-alt"></i><span>Logout</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="top-bar">
+            <button class="menu-toggle" id="menuToggle"><i class="fas fa-bars"></i></button>
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="globalSearch" placeholder="Search notes, assignments, projects...">
+            </div>
+            <div class="top-actions">
+                <button class="icon-btn" id="themeToggle" title="Toggle theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <div class="user-menu">
+                    <div class="user-avatar-small">
+                        {% if current_user.profile_photo %}
+                        <img src="{{ url_for('static', filename='uploads/' + current_user.profile_photo) }}" alt="">
+                        {% else %}
+                        <span>{{ current_user.full_name[0] }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Search Results Dropdown -->
+        <div class="search-results" id="searchResults" style="display:none;"></div>
+
+        <div class="content-area">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+</div>
+
+<!-- Overlay for mobile -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Sidebar toggle
+const sidebar = document.getElementById('sidebar');
+const menuToggle = document.getElementById('menuToggle');
+const sidebarClose = document.getElementById('sidebarClose');
+const overlay = document.getElementById('sidebarOverlay');
+
+menuToggle?.addEventListener('click', () => {
+    sidebar.classList.add('open');
+    overlay.classList.add('active');
+});
+sidebarClose?.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+});
+overlay?.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+});
+
+// Global search
+const searchInput = document.getElementById('globalSearch');
+const searchResults = document.getElementById('searchResults');
+let searchTimeout;
+searchInput?.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    const q = e.target.value.trim();
+    if (q.length < 2) {
+        searchResults.style.display = 'none';
+        return;
+    }
+    searchTimeout = setTimeout(async () => {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (data.results.length === 0) {
+            searchResults.innerHTML = '<div class="search-empty">No results found</div>';
+        } else {
+            searchResults.innerHTML = data.results.map(r => `
+                <div class="search-item" data-type="${r.type}">
+                    <i class="fas fa-${r.type === 'note' ? 'sticky-note' : r.type === 'assignment' ? 'tasks' : 'project-diagram'}"></i>
+                    <div>
+                        <div class="search-title">${r.title}</div>
+                        <div class="search-desc">${r.description || ''}</div>
+                    </div>
+                    <span class="search-type">${r.type}</span>
+                </div>
+            `).join('');
+        }
+        searchResults.style.display = 'block';
+    }, 300);
+});
+
+document.addEventListener('click', (e) => {
+    if (!searchResults.contains(e.target) && e.target !== searchInput) {
+        searchResults.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

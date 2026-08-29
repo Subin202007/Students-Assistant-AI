@@ -1,0 +1,121 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}CGPA Calculator{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-calculator"></i> CGPA / GPA Calculator</h1>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card glass"><div class="stat-info"><div class="stat-value" id="currentGPA">-</div><div class="stat-label">Current Semester GPA</div></div></div>
+    <div class="stat-card glass"><div class="stat-info"><div class="stat-value" id="currentCGPA">-</div><div class="stat-label">Overall CGPA</div></div></div>
+</div>
+
+<div class="card glass">
+    <div class="card-header">
+        <h3>Calculate GPA</h3>
+        <select id="calcSemester" class="form-control" style="width: 200px;">
+            {% for i in range(1, 9) %}<option value="{{ i }}" {% if i == (current_user.semester or 1) %}selected{% endif %}>Semester {{ i }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="card-body">
+        <div id="subjectsList"></div>
+        <button class="btn btn-outline" onclick="addSubjectRow()"><i class="fas fa-plus"></i> Add Subject</button>
+        <button class="btn btn-primary" onclick="calculateGPA()" style="margin-left: 10px;"><i class="fas fa-calculator"></i> Calculate</button>
+    </div>
+</div>
+
+<div class="card glass">
+    <div class="card-header"><h3>GPA Progression</h3></div>
+    <div class="card-body">
+        <canvas id="gpaChart" height="100"></canvas>
+    </div>
+</div>
+
+<div class="card glass">
+    <div class="card-header"><h3>Semester-wise Results</h3></div>
+    <div class="card-body" id="semesterResults"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addSubjectRow(data = {}) {
+    const div = document.createElement('div');
+    div.className = 'subject-row';
+    div.innerHTML = `
+        <input type="text" class="form-control subj-name" placeholder="Subject" value="${data.subject_name || ''}">
+        <input type="number" class="form-control subj-credits" placeholder="Credits" value="${data.credits || ''}" min="0" max="10">
+        <input type="text" class="form-control subj-grade" placeholder="Grade" value="${data.grade || ''}">
+        <input type="number" class="form-control subj-gp" placeholder="Grade Point" value="${data.grade_point || ''}" step="0.01" min="0" max="10">
+        <button class="btn btn-sm btn-danger" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
+    `;
+    document.getElementById('subjectsList').appendChild(div);
+}
+
+async function calculateGPA() {
+    const semester = document.getElementById('calcSemester').value;
+    const rows = document.querySelectorAll('.subject-row');
+    const subjects = [];
+    rows.forEach(r => {
+        const name = r.querySelector('.subj-name').value;
+        const credits = r.querySelector('.subj-credits').value;
+        const grade = r.querySelector('.subj-grade').value;
+        const gp = r.querySelector('.subj-gp').value;
+        if (name && credits && gp) {
+            subjects.push({ subject_name: name, credits: parseInt(credits), grade: grade, grade_point: parseFloat(gp) });
+        }
+    });
+
+    const res = await fetch('/api/cgpa/calculate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ semester, subjects })
+    });
+    const data = await res.json();
+    document.getElementById('currentGPA').textContent = data.gpa;
+    document.getElementById('currentCGPA').textContent = data.cgpa;
+    loadOverall();
+}
+
+async function loadOverall() {
+    const res = await fetch('/api/cgpa/overall');
+    const data = await res.json();
+
+    // Chart
+    const ctx = document.getElementById('gpaChart').getContext('2d');
+    if (window.gpaChart) window.gpaChart.destroy();
+    window.gpaChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.semester_gpas.map(s => `Sem ${s.semester}`),
+            datasets: [{
+                label: 'GPA',
+                data: data.semester_gpas.map(s => s.gpa),
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                tension: 0.3,
+                fill: true,
+            }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 10 } } }
+    });
+
+    // Semester results
+    const results = document.getElementById('semesterResults');
+    if (data.semester_gpas.length === 0) {
+        results.innerHTML = '<div class="empty-state"><p>No semester results yet</p></div>';
+    } else {
+        results.innerHTML = data.semester_gpas.map(s => `
+            <div class="semester-result">
+                <strong>Semester ${s.semester}</strong>
+                <span class="gpa-badge">GPA: ${s.gpa}</span>
+            </div>
+        `).join('') + `<div class="cgpa-total"><strong>Overall CGPA: ${data.cgpa}</strong></div>`;
+    }
+}
+
+// Initialize with one row
+addSubjectRow();
+loadOverall();
+</script>
+{% endblock %}

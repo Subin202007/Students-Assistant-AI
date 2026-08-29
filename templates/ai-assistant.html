@@ -1,0 +1,180 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}AI Assistant - EduAI{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-robot"></i> EduAI - Your Study Assistant</h1>
+</div>
+
+<div class="ai-layout">
+    <div class="ai-sidebar glass">
+        <button class="btn btn-primary btn-block" onclick="newConversation()"><i class="fas fa-plus"></i> New Chat</button>
+        <div class="session-list" id="sessionList"></div>
+    </div>
+
+    <div class="ai-main glass">
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <i class="fas fa-robot fa-3x"></i>
+                <h2>Hello! I'm EduAI 👋</h2>
+                <p>I can help you with academic concepts, programming doubts, mathematics, study planning, and more.</p>
+                <div class="suggestions">
+                    <button class="suggestion-btn" onclick="sendSuggestion('Explain inheritance in Java')">Explain inheritance in Java</button>
+                    <button class="suggestion-btn" onclick="sendSuggestion('Help me plan my study schedule')">Plan my study schedule</button>
+                    <button class="suggestion-btn" onclick="sendSuggestion('What is dynamic programming?')">What is dynamic programming?</button>
+                </div>
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <textarea id="chatInput" placeholder="Ask me anything..." rows="2"></textarea>
+            <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentSession = null;
+
+async function loadSessions() {
+    const res = await fetch('/api/ai/sessions');
+    const sessions = await res.json();
+    document.getElementById('sessionList').innerHTML = sessions.map(s => `
+        <div class="session-item ${currentSession === s.id ? 'active' : ''}" onclick="loadSession(${s.id})">
+            <i class="fas fa-comment"></i>
+            <span>${s.title}</span>
+            <button class="delete-session" onclick="event.stopPropagation(); deleteSession(${s.id})"><i class="fas fa-times"></i></button>
+        </div>
+    `).join('');
+}
+
+async function loadSession(id) {
+    currentSession = id;
+    const res = await fetch(`/api/ai/sessions/${id}`);
+    const data = await res.json();
+    const messages = document.getElementById('chatMessages');
+    messages.innerHTML = data.messages.map(m => `
+        <div class="message ${m.role}">
+            <div class="message-avatar">${m.role === 'user' ? '👤' : '🤖'}</div>
+            <div class="message-content">${renderMarkdown(m.content)}</div>
+        </div>
+    `).join('');
+    messages.scrollTop = messages.scrollHeight;
+    loadSessions();
+}
+
+async function deleteSession(id) {
+    if (!confirm('Delete this conversation?')) return;
+    await fetch(`/api/ai/sessions/${id}`, { method: 'DELETE' });
+    if (currentSession === id) {
+        currentSession = null;
+        document.getElementById('chatMessages').innerHTML = document.getElementById('chatMessages').dataset.welcome || '';
+    }
+    loadSessions();
+}
+
+function newConversation() {
+    currentSession = null;
+    document.getElementById('chatMessages').innerHTML = `
+        <div class="welcome-message">
+            <i class="fas fa-robot fa-3x"></i>
+            <h2>New Conversation</h2>
+            <p>What would you like to learn about?</p>
+        </div>
+    `;
+    loadSessions();
+}
+
+function sendSuggestion(text) {
+    document.getElementById('chatInput').value = text;
+    sendMessage();
+}
+
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message) return;
+
+    const messages = document.getElementById('chatMessages');
+    // Remove welcome
+    const welcome = messages.querySelector('.welcome-message');
+    if (welcome) welcome.remove();
+
+    messages.innerHTML += `
+        <div class="message user">
+            <div class="message-avatar">👤</div>
+            <div class="message-content">${escapeHtml(message)}</div>
+        </div>
+        <div class="message assistant loading-msg">
+            <div class="message-avatar">🤖</div>
+            <div class="message-content"><i class="fas fa-spinner fa-spin"></i> Thinking...</div>
+        </div>
+    `;
+    messages.scrollTop = messages.scrollHeight;
+    input.value = '';
+    document.getElementById('sendBtn').disabled = true;
+
+    try {
+        const res = await fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ message, session_id: currentSession })
+        });
+        const data = await res.json();
+        currentSession = data.session_id;
+        messages.querySelector('.loading-msg').remove();
+        messages.innerHTML += `
+            <div class="message assistant">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    ${renderMarkdown(data.response)}
+                    <button class="copy-btn" onclick="copyText(this)"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>
+        `;
+        messages.scrollTop = messages.scrollHeight;
+        loadSessions();
+    } catch (err) {
+        messages.querySelector('.loading-msg').innerHTML = `<div class="message-content text-danger">Error: ${err.message}</div>`;
+    }
+    document.getElementById('sendBtn').disabled = false;
+}
+
+function renderMarkdown(text) {
+    if (!text) return '';
+    return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`(.+?)`/g, '<code>$1</code>')
+        .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+        .replace(/\n/g, '<br>');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function copyText(btn) {
+    const content = btn.parentElement.querySelector('.message-content').innerText;
+    navigator.clipboard.writeText(content);
+    btn.innerHTML = '<i class="fas fa-check"></i>';
+    setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000);
+}
+
+document.getElementById('chatInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+loadSessions();
+</script>
+{% endblock %}

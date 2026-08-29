@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Students Assistant AI - Home{% endblock %}
+
+{% block body %}
+<!-- Landing Page -->
+<nav class="landing-nav">
+    <div class="nav-container">
+        <div class="logo">
+            <i class="fas fa-graduation-cap"></i>
+            <span>Students Assistant AI</span>
+        </div>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#about">About</a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-outline">Login</a>
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Get Started</a>
+        </div>
+        <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+        <div class="hero-badge">🎓 Your Complete Academic Platform</div>
+        <h1>STUDENTS ASSISTANT <span class="gradient-text">AI</span></h1>
+        <p class="hero-subtitle">Your Complete Academic Life, Organized in One Intelligent Platform.</p>
+        <div class="hero-buttons">
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-rocket"></i> Get Started
+            </a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-outline btn-lg">
+                <i class="fas fa-sign-in-alt"></i> Login
+            </a>
+            <a href="#features" class="btn btn-ghost btn-lg">
+                <i class="fas fa-compass"></i> Explore Features
+            </a>
+        </div>
+        <div class="hero-stats">
+            <div class="stat"><span class="stat-num">15+</span><span class="stat-label">Smart Modules</span></div>
+            <div class="stat"><span class="stat-num">AI</span><span class="stat-label">Powered</span></div>
+            <div class="stat"><span class="stat-num">100%</span><span class="stat-label">Student Focused</span></div>
+        </div>
+    </div>
+</section>
+
+<!-- Features -->
+<section id="features" class="features-section">
+    <div class="container">
+        <h2 class="section-title">Powerful <span class="gradient-text">Features</span></h2>
+        <p class="section-subtitle">Everything a student needs, in one intelligent platform</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                    <i class="fas fa-book"></i>
+                </div>
+                <h3>Academic Management</h3>
+                <p>Track subjects, marks, grades, and academic performance in one place.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+                    <i class="fas fa-clipboard-check"></i>
+                </div>
+                <h3>Attendance Tracking</h3>
+                <p>Monitor subject-wise attendance with smart warnings and predictions.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">
+                    <i class="fas fa-wallet"></i>
+                </div>
+                <h3>Fee Management</h3>
+                <p>Track fee payments, balances, and upload receipts securely.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #43e97b, #38f9d7);">
+                    <i class="fas fa-sticky-note"></i>
+                </div>
+                <h3>Notes & Assignments</h3>
+                <p>Organize notes by subject and unit. Track assignment deadlines.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #fa709a, #fee140);">
+                    <i class="fas fa-project-diagram"></i>
+                </div>
+                <h3>Project Portfolio</h3>
+                <p>Showcase your projects with GitHub links, demos, and documentation.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #30cfd0, #330867);">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <h3>Exam Analytics</h3>
+                <p>Analyze performance with charts, trends, and subject-wise insights.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #a8edea, #fed6e3);">
+                    <i class="fas fa-calculator"></i>
+                </div>
+                <h3>CGPA Calculator</h3>
+                <p>Calculate GPA and CGPA with configurable grade scales.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #ff9a9e, #fecfef);">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <h3>AI Resume Builder</h3>
+                <p>Generate professional resumes with AI-enhanced descriptions.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <h3>AI Study Assistant</h3>
+                <p>Chat with EduAI for doubts, explanations, and study guidance.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+                    <i class="fas fa-question-circle"></i>
+                </div>
+                <h3>Important Questions</h3>
+                <p>AI-generated likely important questions based on your materials.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">
+                    <i class="fas fa-book-reader"></i>
+                </div>
+                <h3>Study Materials</h3>
+                <p>Generate personalized notes, flashcards, and quizzes with AI.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" style="background: linear-gradient(135deg, #43e97b, #38f9d7);">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <h3>Smart Planner</h3>
+                <p>AI-generated study schedules and academic calendar.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- About -->
+<section id="about" class="about-section">
+    <div class="container">
+        <h2 class="section-title">Why <span class="gradient-text">Students Assistant AI</span>?</h2>
+        <div class="about-grid">
+            <div class="about-card">
+                <i class="fas fa-shield-alt"></i>
+                <h3>Private & Secure</h3>
+                <p>Your academic data stays yours. Each student's records are completely private.</p>
+            </div>
+            <div class="about-card">
+                <i class="fas fa-brain"></i>
+                <h3>AI-Powered</h3>
+                <p>Leverage AI for study material, important questions, and resume enhancement.</p>
+            </div>
+            <div class="about-card">
+                <i class="fas fa-mobile-alt"></i>
+                <h3>Works Everywhere</h3>
+                <p>Fully responsive design that works on desktop, tablet, and mobile.</p>
+            </div>
+            <div class="about-card">
+                <i class="fas fa-moon"></i>
+                <h3>Dark Mode</h3>
+                <p>Study comfortably day or night with beautiful dark mode support.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+    <div class="container">
+        <h2>Ready to organize your academic life?</h2>
+        <p>Join Students Assistant AI today and experience the future of student productivity.</p>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-rocket"></i> Get Started Free
+        </a>
+    </div>
+</section>
+
+<footer class="landing-footer">
+    <div class="container">
+        <p>&copy; 2026 Students Assistant AI. Everything a student needs. One intelligent platform.</p>
+    </div>
+</footer>
+{% endblock %}

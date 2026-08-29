@@ -1,0 +1,139 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}My Academics{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-book"></i> My Academics</h1>
+    <button class="btn btn-primary" onclick="openModal('subjectModal')"><i class="fas fa-plus"></i> Add Subject</button>
+</div>
+
+<div class="card glass">
+    <div class="card-header">
+        <h3>Subjects</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Code</th><th>Subject</th><th>Faculty</th><th>Credits</th><th>Semester</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="subjectsTable"></tbody>
+            </table>
+        </div>
+        <div class="empty-state" id="subjectsEmpty" style="display:none;">
+            <i class="fas fa-book"></i>
+            <p>No subjects added yet</p>
+            <button class="btn btn-primary" onclick="openModal('subjectModal')">Add Subject</button>
+        </div>
+    </div>
+</div>
+
+<!-- Subject Modal -->
+<div class="modal" id="subjectModal">
+    <div class="modal-content glass">
+        <div class="modal-header">
+            <h3 id="subjectModalTitle">Add Subject</h3>
+            <button class="close-btn" onclick="closeModal('subjectModal')">&times;</button>
+        </div>
+        <form id="subjectForm">
+            <input type="hidden" id="subjectId">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Course Code</label>
+                    <input type="text" id="subjectCode" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Subject Name</label>
+                    <input type="text" id="subjectName" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Faculty</label>
+                    <input type="text" id="subjectFaculty" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Credits</label>
+                    <input type="number" id="subjectCredits" class="form-control" min="0" max="10">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Semester</label>
+                <input type="number" id="subjectSemester" class="form-control" min="1" max="8" value="{{ current_user.semester or 1 }}">
+            </div>
+            <button type="submit" class="btn btn-primary">Save Subject</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadSubjects() {
+    const res = await fetch('/api/subjects');
+    const data = await res.json();
+    const tbody = document.getElementById('subjectsTable');
+    const empty = document.getElementById('subjectsEmpty');
+    if (data.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = data.map(s => `
+        <tr>
+            <td><strong>${s.code}</strong></td>
+            <td>${s.name}</td>
+            <td>${s.faculty || '-'}</td>
+            <td>${s.credits}</td>
+            <td>${s.semester}</td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick='editSubject(${JSON.stringify(s)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-danger" onclick="deleteSubject(${s.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+    window._subjects = data;
+}
+
+function editSubject(s) {
+    document.getElementById('subjectId').value = s.id;
+    document.getElementById('subjectCode').value = s.code;
+    document.getElementById('subjectName').value = s.name;
+    document.getElementById('subjectFaculty').value = s.faculty || '';
+    document.getElementById('subjectCredits').value = s.credits;
+    document.getElementById('subjectSemester').value = s.semester;
+    document.getElementById('subjectModalTitle').textContent = 'Edit Subject';
+    openModal('subjectModal');
+}
+
+async function deleteSubject(id) {
+    if (!confirm('Delete this subject?')) return;
+    await fetch(`/api/subjects/${id}`, { method: 'DELETE' });
+    loadSubjects();
+}
+
+document.getElementById('subjectForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('subjectId').value;
+    const payload = {
+        code: document.getElementById('subjectCode').value,
+        name: document.getElementById('subjectName').value,
+        faculty: document.getElementById('subjectFaculty').value,
+        credits: document.getElementById('subjectCredits').value,
+        semester: document.getElementById('subjectSemester').value,
+    };
+    const url = id ? `/api/subjects/${id}` : '/api/subjects';
+    const method = id ? 'PUT' : 'POST';
+    await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    closeModal('subjectModal');
+    document.getElementById('subjectForm').reset();
+    document.getElementById('subjectId').value = '';
+    document.getElementById('subjectModalTitle').textContent = 'Add Subject';
+    loadSubjects();
+});
+
+loadSubjects();
+</script>
+{% endblock %}

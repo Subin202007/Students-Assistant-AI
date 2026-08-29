@@ -1,0 +1,158 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Assignments{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-tasks"></i> Assignments</h1>
+    <button class="btn btn-primary" onclick="openModal('assignModal')"><i class="fas fa-plus"></i> Add Assignment</button>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card glass"><div class="stat-info"><div class="stat-value" id="pendingCount">0</div><div class="stat-label">Pending</div></div></div>
+    <div class="stat-card glass"><div class="stat-info"><div class="stat-value" id="progressCount">0</div><div class="stat-label">In Progress</div></div></div>
+    <div class="stat-card glass"><div class="stat-info"><div class="stat-value" id="completedCount">0</div><div class="stat-label">Completed</div></div></div>
+    <div class="stat-card glass"><div class="stat-info"><div class="stat-value" id="overdueCount">0</div><div class="stat-label">Overdue</div></div></div>
+</div>
+
+<div class="card glass">
+    <div class="card-header">
+        <h3>All Assignments</h3>
+        <select id="assignFilter" class="form-control">
+            <option value="">All</option>
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Submitted">Submitted</option>
+        </select>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead><tr><th>Title</th><th>Subject</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="assignTable"></tbody>
+            </table>
+        </div>
+        <div class="empty-state" id="assignEmpty" style="display:none;">
+            <i class="fas fa-tasks"></i>
+            <p>No assignments added yet</p>
+            <button class="btn btn-primary" onclick="openModal('assignModal')">Add Assignment</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="assignModal">
+    <div class="modal-content glass">
+        <div class="modal-header">
+            <h3 id="assignModalTitle">Add Assignment</h3>
+            <button class="close-btn" onclick="closeModal('assignModal')">&times;</button>
+        </div>
+        <form id="assignForm" enctype="multipart/form-data">
+            <input type="hidden" id="assignId">
+            <div class="form-group"><label>Title</label><input type="text" id="assignTitle" class="form-control" required></div>
+            <div class="form-row">
+                <div class="form-group"><label>Subject</label><select id="assignSubject" class="form-control"></select></div>
+                <div class="form-group"><label>Faculty</label><input type="text" id="assignFaculty" class="form-control"></div>
+            </div>
+            <div class="form-group"><label>Description</label><textarea id="assignDesc" class="form-control" rows="3"></textarea></div>
+            <div class="form-row">
+                <div class="form-group"><label>Assigned Date</label><input type="date" id="assignAssigned" class="form-control"></div>
+                <div class="form-group"><label>Due Date</label><input type="date" id="assignDue" class="form-control" required></div>
+            </div>
+            <div class="form-group"><label>Status</label>
+                <select id="assignStatus" class="form-control">
+                    <option>Pending</option><option>In Progress</option><option>Completed</option><option>Submitted</option><option>Late</option>
+                </select>
+            </div>
+            <div class="form-group"><label>Submission File</label><input type="file" id="assignFile" class="form-control"></div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadAssignments() {
+    const [aRes, sRes] = await Promise.all([
+        fetch(`/api/assignments?status=${document.getElementById('assignFilter').value}`),
+        fetch('/api/subjects')
+    ]);
+    const assigns = await aRes.json();
+    const subjects = await sRes.json();
+    document.getElementById('assignSubject').innerHTML = '<option value="">General</option>' + subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+    let pending=0, progress=0, completed=0, overdue=0;
+    assigns.forEach(a => {
+        if (a.status === 'Pending') pending++;
+        else if (a.status === 'In Progress') progress++;
+        else if (['Completed','Submitted'].includes(a.status)) completed++;
+        if (a.is_overdue) overdue++;
+    });
+    document.getElementById('pendingCount').textContent = pending;
+    document.getElementById('progressCount').textContent = progress;
+    document.getElementById('completedCount').textContent = completed;
+    document.getElementById('overdueCount').textContent = overdue;
+
+    const tbody = document.getElementById('assignTable');
+    const empty = document.getElementById('assignEmpty');
+    if (assigns.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    tbody.innerHTML = assigns.map(a => `
+        <tr class="${a.is_overdue ? 'overdue-row' : ''}">
+            <td><strong>${a.title}</strong></td>
+            <td>${a.subject_name}</td>
+            <td>${a.due_date || '-'} ${a.is_overdue ? '<span class="text-danger">⚠</span>' : ''}</td>
+            <td><span class="status-badge status-${a.status.toLowerCase().replace(' ','-')}">${a.status}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick='editAssign(${JSON.stringify(a)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-danger" onclick="deleteAssign(${a.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function editAssign(a) {
+    document.getElementById('assignId').value = a.id;
+    document.getElementById('assignTitle').value = a.title;
+    document.getElementById('assignSubject').value = a.subject_id || '';
+    document.getElementById('assignFaculty').value = a.faculty || '';
+    document.getElementById('assignDesc').value = a.description || '';
+    document.getElementById('assignAssigned').value = a.assigned_date || '';
+    document.getElementById('assignDue').value = a.due_date || '';
+    document.getElementById('assignStatus').value = a.status;
+    document.getElementById('assignModalTitle').textContent = 'Edit Assignment';
+    openModal('assignModal');
+}
+
+async function deleteAssign(id) {
+    if (!confirm('Delete?')) return;
+    await fetch(`/api/assignments/${id}`, { method: 'DELETE' });
+    loadAssignments();
+}
+
+document.getElementById('assignForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('assignId').value;
+    const fd = new FormData();
+    fd.append('title', document.getElementById('assignTitle').value);
+    fd.append('subject_id', document.getElementById('assignSubject').value);
+    fd.append('faculty', document.getElementById('assignFaculty').value);
+    fd.append('description', document.getElementById('assignDesc').value);
+    fd.append('assigned_date', document.getElementById('assignAssigned').value);
+    fd.append('due_date', document.getElementById('assignDue').value);
+    fd.append('status', document.getElementById('assignStatus').value);
+    const file = document.getElementById('assignFile').files[0];
+    if (file) fd.append('submission', file);
+
+    const url = id ? `/api/assignments/${id}` : '/api/assignments';
+    const method = id ? 'PUT' : 'POST';
+    await fetch(url, { method, body: fd });
+    closeModal('assignModal');
+    document.getElementById('assignForm').reset();
+    document.getElementById('assignId').value = '';
+    loadAssignments();
+});
+
+document.getElementById('assignFilter').addEventListener('change', loadAssignments);
+loadAssignments();
+</script>
+{% endblock %}

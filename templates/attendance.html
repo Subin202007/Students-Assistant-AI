@@ -1,0 +1,184 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Attendance{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-clipboard-check"></i> Attendance</h1>
+    <button class="btn btn-primary" onclick="openModal('attendanceModal')"><i class="fas fa-plus"></i> Add Record</button>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card glass">
+        <div class="stat-info">
+            <div class="stat-value" id="overallAttendance">-</div>
+            <div class="stat-label">Overall Attendance</div>
+        </div>
+    </div>
+    <div class="stat-card glass">
+        <div class="stat-info">
+            <div class="stat-value" id="totalSubjects">-</div>
+            <div class="stat-label">Subjects Tracked</div>
+        </div>
+    </div>
+</div>
+
+<div class="card glass">
+    <div class="card-header"><h3>Subject-wise Attendance</h3></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Subject</th><th>Total</th><th>Attended</th><th>Absent</th><th>Percentage</th><th>Status</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceTable"></tbody>
+            </table>
+        </div>
+        <div class="empty-state" id="attendanceEmpty" style="display:none;">
+            <i class="fas fa-clipboard-check"></i>
+            <p>No attendance records yet</p>
+            <button class="btn btn-primary" onclick="openModal('attendanceModal')">Add Record</button>
+        </div>
+    </div>
+</div>
+
+<div class="card glass">
+    <div class="card-header"><h3>Attendance Chart</h3></div>
+    <div class="card-body">
+        <canvas id="attendanceChart" height="100"></canvas>
+    </div>
+</div>
+
+<!-- Attendance Modal -->
+<div class="modal" id="attendanceModal">
+    <div class="modal-content glass">
+        <div class="modal-header">
+            <h3 id="attendanceModalTitle">Add Attendance</h3>
+            <button class="close-btn" onclick="closeModal('attendanceModal')">&times;</button>
+        </div>
+        <form id="attendanceForm">
+            <input type="hidden" id="attendanceId">
+            <div class="form-group">
+                <label>Subject</label>
+                <select id="attendanceSubject" class="form-control" required></select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Total Classes</label>
+                    <input type="number" id="totalClasses" class="form-control" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label>Classes Attended</label>
+                    <input type="number" id="classesAttended" class="form-control" min="0" required>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let attendanceChart;
+
+async function loadAttendance() {
+    const [attRes, subjRes] = await Promise.all([
+        fetch('/api/attendance'),
+        fetch('/api/subjects')
+    ]);
+    const attData = await attRes.json();
+    const subjects = await subjRes.json();
+
+    document.getElementById('overallAttendance').textContent = attData.overall + '%';
+    document.getElementById('totalSubjects').textContent = attData.records.length;
+
+    // Populate subject dropdown
+    const select = document.getElementById('attendanceSubject');
+    select.innerHTML = '<option value="">Select Subject</option>' + subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+    const tbody = document.getElementById('attendanceTable');
+    const empty = document.getElementById('attendanceEmpty');
+    if (attData.records.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = attData.records.map(r => `
+        <tr>
+            <td><strong>${r.subject_name}</strong></td>
+            <td>${r.total_classes}</td>
+            <td>${r.classes_attended}</td>
+            <td>${r.classes_absent}</td>
+            <td><strong>${r.percentage}%</strong></td>
+            <td><span class="status-badge status-${r.status.toLowerCase()}">${r.status}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick='editAttendance(${JSON.stringify(r)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-danger" onclick="deleteAttendance(${r.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+
+    // Chart
+    if (attendanceChart) attendanceChart.destroy();
+    const ctx = document.getElementById('attendanceChart').getContext('2d');
+    attendanceChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: attData.records.map(r => r.subject_name),
+            datasets: [{
+                label: 'Attendance %',
+                data: attData.records.map(r => r.percentage),
+                backgroundColor: attData.records.map(r => {
+                    if (r.percentage >= 90) return 'rgba(67, 233, 123, 0.7)';
+                    if (r.percentage >= 75) return 'rgba(79, 172, 254, 0.7)';
+                    if (r.percentage >= 65) return 'rgba(250, 112, 154, 0.7)';
+                    return 'rgba(245, 87, 108, 0.7)';
+                }),
+                borderRadius: 8,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, max: 100 } }
+        }
+    });
+}
+
+function editAttendance(r) {
+    document.getElementById('attendanceId').value = r.id;
+    document.getElementById('attendanceSubject').value = r.subject_id;
+    document.getElementById('totalClasses').value = r.total_classes;
+    document.getElementById('classesAttended').value = r.classes_attended;
+    document.getElementById('attendanceModalTitle').textContent = 'Edit Attendance';
+    openModal('attendanceModal');
+}
+
+async function deleteAttendance(id) {
+    if (!confirm('Delete?')) return;
+    await fetch(`/api/attendance/${id}`, { method: 'DELETE' });
+    loadAttendance();
+}
+
+document.getElementById('attendanceForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('attendanceId').value;
+    const payload = {
+        subject_id: document.getElementById('attendanceSubject').value,
+        total_classes: document.getElementById('totalClasses').value,
+        classes_attended: document.getElementById('classesAttended').value,
+    };
+    const url = id ? `/api/attendance/${id}` : '/api/attendance';
+    const method = id ? 'PUT' : 'POST';
+    await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    closeModal('attendanceModal');
+    document.getElementById('attendanceForm').reset();
+    document.getElementById('attendanceId').value = '';
+    loadAttendance();
+});
+
+loadAttendance();
+</script>
+{% endblock %}

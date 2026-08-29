@@ -1,0 +1,129 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Projects{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-project-diagram"></i> Project Portfolio</h1>
+    <button class="btn btn-primary" onclick="openModal('projectModal')"><i class="fas fa-plus"></i> Add Project</button>
+</div>
+
+<div class="projects-grid" id="projectsGrid"></div>
+<div class="empty-state" id="projectsEmpty" style="display:none;">
+    <i class="fas fa-project-diagram"></i>
+    <p>No projects yet</p>
+    <button class="btn btn-primary" onclick="openModal('projectModal')">Add Project</button>
+</div>
+
+<div class="modal" id="projectModal">
+    <div class="modal-content glass">
+        <div class="modal-header">
+            <h3 id="projectModalTitle">Add Project</h3>
+            <button class="close-btn" onclick="closeModal('projectModal')">&times;</button>
+        </div>
+        <form id="projectForm" enctype="multipart/form-data">
+            <input type="hidden" id="projectId">
+            <div class="form-group"><label>Title</label><input type="text" id="projTitle" class="form-control" required></div>
+            <div class="form-group"><label>Description</label><textarea id="projDesc" class="form-control" rows="3"></textarea></div>
+            <div class="form-group"><label>Technologies (comma separated)</label><input type="text" id="projTech" class="form-control" placeholder="Python, Flask, SQL"></div>
+            <div class="form-row">
+                <div class="form-group"><label>GitHub Link</label><input type="url" id="projGithub" class="form-control"></div>
+                <div class="form-group"><label>Live Demo</label><input type="url" id="projDemo" class="form-control"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Start Date</label><input type="date" id="projStart" class="form-control"></div>
+                <div class="form-group"><label>Completion Date</label><input type="date" id="projEnd" class="form-control"></div>
+            </div>
+            <div class="form-group"><label>Status</label>
+                <select id="projStatus" class="form-control">
+                    <option>Planning</option><option>Development</option><option>Completed</option>
+                </select>
+            </div>
+            <div class="form-group"><label>Team Members (comma separated)</label><input type="text" id="projMembers" class="form-control"></div>
+            <div class="form-group"><label>Project Image</label><input type="file" id="projImage" class="form-control" accept="image/*"></div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadProjects() {
+    const res = await fetch('/api/projects');
+    const data = await res.json();
+    const grid = document.getElementById('projectsGrid');
+    const empty = document.getElementById('projectsEmpty');
+    if (data.length === 0) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    grid.innerHTML = data.map(p => `
+        <div class="project-card glass">
+            ${p.image_path ? `<img src="/uploads/${p.image_path}" class="project-image" alt="">` : `<div class="project-placeholder"><i class="fas fa-code"></i></div>`}
+            <div class="project-body">
+                <h3>${p.title}</h3>
+                <p>${p.description || ''}</p>
+                <div class="tech-tags">${(p.technologies||'').split(',').map(t => `<span class="tag">${t.trim()}</span>`).join('')}</div>
+                <div class="project-meta">
+                    <span class="status-badge status-${p.status.toLowerCase()}">${p.status}</span>
+                    ${p.completion_date ? `<span>${p.completion_date}</span>` : ''}
+                </div>
+                <div class="project-links">
+                    ${p.github_link ? `<a href="${p.github_link}" target="_blank" class="btn btn-sm btn-outline"><i class="fab fa-github"></i> GitHub</a>` : ''}
+                    ${p.live_demo ? `<a href="${p.live_demo}" target="_blank" class="btn btn-sm btn-primary"><i class="fas fa-external-link-alt"></i> Demo</a>` : ''}
+                </div>
+                <div class="project-actions">
+                    <button class="btn btn-sm btn-outline" onclick='editProject(${JSON.stringify(p)})'><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteProject(${p.id})"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function editProject(p) {
+    document.getElementById('projectId').value = p.id;
+    document.getElementById('projTitle').value = p.title;
+    document.getElementById('projDesc').value = p.description || '';
+    document.getElementById('projTech').value = p.technologies || '';
+    document.getElementById('projGithub').value = p.github_link || '';
+    document.getElementById('projDemo').value = p.live_demo || '';
+    document.getElementById('projStart').value = p.start_date || '';
+    document.getElementById('projEnd').value = p.completion_date || '';
+    document.getElementById('projStatus').value = p.status;
+    document.getElementById('projMembers').value = (p.members||[]).map(m => m.name).join(', ');
+    document.getElementById('projectModalTitle').textContent = 'Edit Project';
+    openModal('projectModal');
+}
+
+async function deleteProject(id) {
+    if (!confirm('Delete?')) return;
+    await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+    loadProjects();
+}
+
+document.getElementById('projectForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('projectId').value;
+    const fd = new FormData();
+    fd.append('title', document.getElementById('projTitle').value);
+    fd.append('description', document.getElementById('projDesc').value);
+    fd.append('technologies', document.getElementById('projTech').value);
+    fd.append('github_link', document.getElementById('projGithub').value);
+    fd.append('live_demo', document.getElementById('projDemo').value);
+    fd.append('start_date', document.getElementById('projStart').value);
+    fd.append('completion_date', document.getElementById('projEnd').value);
+    fd.append('status', document.getElementById('projStatus').value);
+    fd.append('members', document.getElementById('projMembers').value);
+    const file = document.getElementById('projImage').files[0];
+    if (file) fd.append('image', file);
+
+    const url = id ? `/api/projects/${id}` : '/api/projects';
+    const method = id ? 'PUT' : 'POST';
+    await fetch(url, { method, body: fd });
+    closeModal('projectModal');
+    document.getElementById('projectForm').reset();
+    document.getElementById('projectId').value = '';
+    loadProjects();
+});
+
+loadProjects();
+</script>
+{% endblock %}
